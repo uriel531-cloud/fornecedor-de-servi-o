@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { camadas } from "@/content/metodo";
 import { Photo } from "@/components/ui/Photo";
 import { TLink } from "@/components/ui/TLink";
@@ -26,7 +26,7 @@ function Title() {
   );
 }
 
-/** Versão estática: mobile, movimento reduzido ou sem WebGL. */
+/** Versão estática: movimento reduzido. */
 function LayersList() {
   return (
     <section className="section-y bg-graphite-950 text-paper" aria-labelledby="camadas-titulo">
@@ -54,8 +54,27 @@ function LayersList() {
   );
 }
 
+/** O modelo 3D, ou as fotos em sequência quando o aparelho não tem WebGL. */
+function ModelPane({ webgl, step, progress, active, sizes }: { webgl: boolean; step: number; progress: RefObject<number>; active: boolean; sizes: string }) {
+  return (
+    <div className="absolute inset-0">
+      {webgl ? (
+        <LayersScene progress={progress} active={active} />
+      ) : (
+        camadas.map((x, i) => (
+          <div key={x.n} className={cn("absolute inset-0 transition-opacity duration-700", i === step ? "opacity-100" : "opacity-0")}>
+            <Photo k={x.imagem} sizes={sizes} />
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+type Mode = "list" | "pinned" | "stacked";
+
 export function LayersSection() {
-  const [mode, setMode] = useState<"list" | "pinned">("list");
+  const [mode, setMode] = useState<Mode>("list");
   const [webgl, setWebgl] = useState(true);
   const [step, setStep] = useState(0);
   const [active, setActive] = useState(false);
@@ -63,22 +82,27 @@ export function LayersSection() {
   const progress = useRef(0);
 
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px) and (prefers-reduced-motion: no-preference)");
-    const update = () => setMode(mq.matches ? "pinned" : "list");
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setMode(reduced.matches ? "list" : desktop.matches ? "pinned" : "stacked");
     update();
-    mq.addEventListener("change", update);
+    desktop.addEventListener("change", update);
+    reduced.addEventListener("change", update);
     try {
       const c = document.createElement("canvas");
       setWebgl(!!(c.getContext("webgl2") || c.getContext("webgl")));
     } catch {
       setWebgl(false);
     }
-    return () => mq.removeEventListener("change", update);
+    return () => {
+      desktop.removeEventListener("change", update);
+      reduced.removeEventListener("change", update);
+    };
   }, []);
 
   useEffect(() => {
     const el = outer.current;
-    if (mode !== "pinned" || !el) return;
+    if (mode === "list" || !el) return;
     const st = ScrollTrigger.create({
       trigger: el,
       start: "top top",
@@ -90,7 +114,10 @@ export function LayersSection() {
     });
     const io = new IntersectionObserver(([e]) => setActive(e.isIntersecting), { rootMargin: "200px 0px" });
     io.observe(el);
+    // a altura da seção mudou ao trocar de modo: recalcula os gatilhos das seções seguintes
+    const raf = requestAnimationFrame(() => ScrollTrigger.refresh());
     return () => {
+      cancelAnimationFrame(raf);
       st.kill();
       io.disconnect();
     };
@@ -100,23 +127,54 @@ export function LayersSection() {
 
   const c = camadas[step];
 
+  /* Mobile e tablet: título no fluxo; depois o modelo em cima e a etapa embaixo, fixos durante o scroll */
+  if (mode === "stacked")
+    return (
+      <section aria-labelledby="camadas-titulo-m" className="bg-graphite-950 text-paper">
+        <div id="camadas-titulo-m" className="container-x pt-20 pb-6 sm:pt-28">
+          <Title />
+        </div>
+        <div ref={outer} className="relative" style={{ height: `${camadas.length * 55 + 100}svh` }}>
+          <div className="sticky top-0 flex h-[100svh] flex-col overflow-hidden pb-[4.75rem]">
+            <div className="blueprint-grid relative min-h-0 flex-1 border-b border-paper/10">
+              <ModelPane webgl={webgl} step={step} progress={progress} active={active} sizes="100vw" />
+              <p className="mono-label text-muted absolute bottom-3 left-[var(--gutter)]">Folha {c.n}/08</p>
+            </div>
+
+            <div className="flex h-[15.75rem] shrink-0 flex-col justify-between px-[var(--gutter)] pt-5 pb-4">
+              <div key={c.n} className="step-in">
+                <div className="flex items-end gap-4">
+                  <p className="font-display-c shrink-0 text-[3.25rem] leading-none text-signal tabular-nums">
+                    {c.n}
+                    <span className="text-paper/30">/08</span>
+                  </p>
+                  <h3 className="font-display-x min-w-0 pb-1 text-[1.25rem] sm:text-[1.625rem]">{c.nome}</h3>
+                </div>
+                <p className="serif-accent mt-3 text-[1.25rem] leading-snug text-paper/90">{c.frase}</p>
+                <p className="text-muted mt-2 text-sm">{c.oficios.join(" · ")}</p>
+                <TLink href={`/servicos/${c.disciplina}`} className="mono-label link-underline mt-2 inline-flex min-h-11 items-center gap-2">
+                  Ver a disciplina <Arrow />
+                </TLink>
+              </div>
+
+              <div aria-hidden className="grid grid-cols-8 gap-1">
+                {camadas.map((x, i) => (
+                  <span key={x.n} className={cn("h-0.5 transition-colors duration-500", i <= step ? "bg-signal" : "bg-paper/20")} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+
   return (
     <section aria-labelledby="camadas-titulo-pin" className="bg-graphite-950 text-paper">
       <div ref={outer} className="relative" style={{ height: `${camadas.length * 70 + 100}vh` }}>
         <div className="sticky top-0 grid h-screen grid-cols-[1.4fr_1fr] overflow-hidden">
           {/* Modelo */}
           <div className="blueprint-grid relative border-r border-paper/10">
-            <div className="absolute inset-0">
-              {webgl ? (
-                <LayersScene progress={progress} active={active} />
-              ) : (
-                camadas.map((x, i) => (
-                  <div key={x.n} className={cn("absolute inset-0 transition-opacity duration-700", i === step ? "opacity-100" : "opacity-0")}>
-                    <Photo k={x.imagem} sizes="60vw" />
-                  </div>
-                ))
-              )}
-            </div>
+            <ModelPane webgl={webgl} step={step} progress={progress} active={active} sizes="60vw" />
             <p className="mono-label text-muted absolute top-[calc(var(--header-h)+1.5rem)] left-[var(--gutter)]">
               Folha {c.n}/08 — Axonometria explodida
             </p>

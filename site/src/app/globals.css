@@ -549,6 +549,12 @@ html.js [data-split]:not(.split-ready) {
     visibility: visible;
   }
 }
+/* A máscara de cada linha cortava acentos sobre maiúsculas (Ã, É) e descendentes (ç, g).
+   clip-path com inset negativo dá folga ao recorte sem mexer no layout. */
+.split-line-mask {
+  overflow: visible !important;
+  clip-path: inset(-0.22em -0.1em -0.16em -0.1em);
+}
 .photo-before {
   filter: grayscale(0.6) contrast(1.05) !important;
 }

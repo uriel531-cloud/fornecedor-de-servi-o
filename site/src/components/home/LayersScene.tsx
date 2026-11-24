@@ -198,7 +198,9 @@ function Rig() {
   const { camera, size } = useThree();
   useEffect(() => {
     const cam = camera as THREE.OrthographicCamera;
-    cam.zoom = Math.min(size.width / 30, size.height / 21);
+    // tela em pé (celular): a casa ocupa a largura e o jardim pode vazar pelas bordas
+    const portrait = size.width < size.height * 1.1;
+    cam.zoom = portrait ? Math.min(size.width / 21, size.height / 18) : Math.min(size.width / 30, size.height / 21);
     cam.position.set(20, 15, 20);
     cam.lookAt(0, 0.5, 0);
     cam.updateProjectionMatrix();

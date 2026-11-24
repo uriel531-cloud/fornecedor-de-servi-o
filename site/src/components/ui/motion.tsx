@@ -51,7 +51,7 @@ export function SplitReveal({
         onSplit(self) {
           el.classList.add("split-ready");
           return gsap.from(self.lines, {
-            yPercent: 110,
+            yPercent: 140, // além da folga da máscara, para a linha começar totalmente escondida
             stagger: 0.08,
             duration: 1.1,
             ease: "expo.out",
